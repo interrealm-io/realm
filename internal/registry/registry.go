@@ -62,12 +62,58 @@ func New(cfg Config) *Registry {
 		dialTimeout: 10 * time.Second,
 	}
 }
+func (r *Registry) queryExists(peer string) (bool, string) {
+	conn, err := net.DialTimeout("tcp", peer, 5*time.Second)
+	if err != nil {
+		return false, ""
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+
+	msg := map[string]any{
+		"type":    "REALM_RESOLVE",
+		"request": map[string]string{"realmId": r.realmID},
+	}
+	data, _ := json.Marshal(msg)
+	if err := writeFrame(conn, data); err != nil {
+		return false, ""
+	}
+
+	respData, err := readFrame(conn)
+	if err != nil {
+		return false, ""
+	}
+
+	var resp struct {
+		Found     bool   `json:"found"`
+		BlockHash string `json:"blockHash,omitempty"`
+	}
+	if err := json.Unmarshal(respData, &resp); err != nil {
+		return false, ""
+	}
+	return resp.Found, resp.BlockHash
+}
 
 // Register signs and broadcasts a REALM_REGISTERED event to all peers,
 // then blocks until majority confirmation is received.
 func (r *Registry) Register() error {
 	if len(r.peers) == 0 {
 		return fmt.Errorf("no peers configured — cannot register on realmnet")
+	}
+
+	// Resume support — skip if already on ledger
+	if isRegistered, blockHash := r.isAlreadyRegistered(); isRegistered {
+		regID := r.realmID
+		if blockHash != "" {
+			// Show first 8 chars of block hash as registration ID
+			if len(blockHash) > 8 {
+				regID = "realmnet1" + blockHash[:8]
+			} else {
+				regID = "realmnet1" + blockHash
+			}
+		}
+		fmt.Printf("Already registered as: %s\n", regID)
+		return nil
 	}
 
 	req := RegistrationRequest{
@@ -110,6 +156,16 @@ func (r *Registry) Register() error {
 	// not from polling every peer at registration time.
 	log.Printf("[registry] ✓ %s registered on realmnet (%d peer(s) confirmed, propagating via gossip)", r.realmID, accepted)
 	return nil
+}
+
+func (r *Registry) isAlreadyRegistered() (bool, string) {
+	// Ask a peer if we're already on the ledger
+	for _, peer := range r.peers {
+		if found, blockHash := r.queryExists(peer); found {
+			return true, blockHash
+		}
+	}
+	return false, ""
 }
 
 // broadcast fans out to all peers concurrently.

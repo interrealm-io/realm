@@ -1,0 +1,51 @@
+# realm.yaml — configuration for a realm container runtime instance
+# This file defines the identity, network presence, and capabilities of your realm.
+
+realm:
+  # Unique identifier on the realmnet ledger
+  id: newrock.realmnet
+
+  # Human-readable name
+  name: Newrock
+
+  # Runtime mode: private (local only) or public (registered on realmnet)
+  mode: private  # change to 'public' to join the realmnet ledger
+
+  # Path to your realm keypair (generated with: realm keygen)
+  keyfile: ./keys/newrock.pem
+
+# Network configuration
+network:
+  # Port this realm listens on for incoming inter-realm requests
+  port: 8080
+
+  # Public endpoint — required if mode is 'public'
+  # endpoint: https://realm.newrock.com
+
+  # realmnet bootstrap peers — used to sync the ledger and announce presence
+  bootstrap:
+    - https://bootstrap1.realmnet.io
+    - https://bootstrap2.realmnet.io
+
+# Capabilities — HTTP tool endpoints this realm exposes
+capabilities:
+  enabled: true
+  basePath: /capabilities
+
+  tools:
+    - name: ping
+      description: Health check — returns realm identity and status
+      path: /ping
+      method: GET
+      public: true  # no auth required
+
+    # Add your tools here:
+    # - name: my-tool
+    #   description: What this tool does
+    #   path: /my-tool
+    #   method: POST
+    #   public: false  # requires inter-realm auth
+
+# Observability
+observability:
+  logLevel: info  # debug, info, warn, error

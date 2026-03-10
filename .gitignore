@@ -1,0 +1,56 @@
+# Binaries
+bin/
+dist/
+realmctl
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go build artifacts
+*.o
+*.a
+*.test
+*.out
+/vendor/
+
+# Go workspace
+go.work
+go.work.sum
+
+# Module download cache
+go/pkg/mod/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Keys — never commit private keys
+keys/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local node data
+data/
+chain.db
+node.db
+*.bolt
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Logs
+*.log
+logs/
+
+# Test output
+coverage.out
+coverage.html

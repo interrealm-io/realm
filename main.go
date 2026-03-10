@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/interrealm-io/realm/internal/config"
 	"github.com/interrealm-io/realm/internal/identity"
+	"github.com/interrealm-io/realm/internal/registry"
 	"github.com/interrealm-io/realm/internal/server"
 )
 
@@ -65,14 +67,48 @@ var startCmd = &cobra.Command{
 		log.Printf("[realm] starting %s (%s)", cfg.Realm.ID, cfg.Realm.Name)
 		log.Printf("[realm] mode: %s", cfg.Realm.Mode)
 
+		// If public mode — register on realmnet before accepting traffic
 		if cfg.Realm.Mode == config.ModePublic {
-			log.Printf("[realm] will register on realmnet at startup")
-			// TODO: call realmnet registration
+			pubKeyPEM, err := id.PublicKeyPEM()
+			if err != nil {
+				return fmt.Errorf("export public key: %w", err)
+			}
+
+			// Convert bootstrap URLs to TCP addresses
+			peers := bootstrapTCP(cfg.Network.Bootstrap)
+
+			reg := registry.New(registry.Config{
+				RealmID:    cfg.Realm.ID,
+				Endpoint:   cfg.Network.Endpoint,
+				PublicKey:  pubKeyPEM,
+				PrivateKey: id.PrivateKey,
+				Peers:      peers,
+			})
+
+			if err := reg.Register(); err != nil {
+				return fmt.Errorf("realmnet registration failed: %w", err)
+			}
 		}
 
+		// Start HTTP capability server
 		srv := server.New(cfg, id)
 		return srv.Start()
 	},
+}
+
+// bootstrapTCP converts bootstrap URLs to host:port TCP addresses.
+// e.g. "https://bootstrap1.realmnet.io" → "bootstrap1.realmnet.io:7946"
+func bootstrapTCP(peers []string) []string {
+	tcp := make([]string, 0, len(peers))
+	for _, p := range peers {
+		p = strings.TrimPrefix(p, "https://")
+		p = strings.TrimPrefix(p, "http://")
+		if !strings.Contains(p, ":") {
+			p = p + ":7946"
+		}
+		tcp = append(tcp, p)
+	}
+	return tcp
 }
 
 // --- keygen ---
